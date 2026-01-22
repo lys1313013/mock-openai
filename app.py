@@ -2,7 +2,7 @@ import json
 import time
 import uuid
 import argparse
-from flask import Flask, request, Response, jsonify
+from flask import Flask, request, Response, jsonify, render_template
 from flask_cors import CORS
 import logging
 import requests
@@ -17,8 +17,46 @@ CORS(app)  # 添加CORS支持
 
 def read_config():
     """读取并解析config.json文件"""
-    with open('config.json', 'r') as f:
+    with open('config.json', 'r', encoding='utf-8') as f:
         return json.load(f)
+
+
+def write_config(config):
+    """保存配置到config.json文件"""
+    with open('config.json', 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+
+
+@app.route('/')
+def index():
+    """配置管理页面"""
+    return render_template('index.html')
+
+
+@app.route('/chat')
+def chat_page():
+    """对话测试页面"""
+    return render_template('chat.html')
+
+
+@app.route('/api/config', methods=['GET'])
+def get_config():
+    """获取当前配置"""
+    try:
+        return jsonify(read_config())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/config', methods=['POST'])
+def save_config():
+    """保存配置"""
+    try:
+        new_config = request.json
+        write_config(new_config)
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 def get_proxy_config():
@@ -223,6 +261,11 @@ def match_messages(request_messages, preset_messages):
 
 def generate_default_response(request_data):
     """生成默认响应"""
+    config = read_config()
+    mock_config = config.get('mock_config', {})
+    default_content = mock_config.get('default_content', 'This is a simulated response from the mock OpenAI API.')
+    default_model = mock_config.get('default_model', 'gpt-3.5-turbo')
+
     # 检查是否需要工具调用（新版格式）
     tool_choice = request_data.get('tool_choice')
     tools = request_data.get('tools', [])
@@ -246,7 +289,7 @@ def generate_default_response(request_data):
             'id': f'chatcmpl-{str(uuid.uuid4())[:28]}',
             'object': 'chat.completion',
             'created': int(time.time()),
-            'model': request_data.get('model', 'gpt-3.5-turbo'),
+            'model': request_data.get('model', default_model),
             'choices': [
                 {
                     'index': 0,
@@ -287,7 +330,7 @@ def generate_default_response(request_data):
             'id': f'chatcmpl-{str(uuid.uuid4())[:28]}',
             'object': 'chat.completion',
             'created': int(time.time()),
-            'model': request_data.get('model', 'gpt-3.5-turbo'),
+            'model': request_data.get('model', default_model),
             'choices': [
                 {
                     'index': 0,
@@ -314,13 +357,13 @@ def generate_default_response(request_data):
             'id': f'chatcmpl-{str(uuid.uuid4())[:28]}',
             'object': 'chat.completion',
             'created': int(time.time()),
-            'model': request_data.get('model', 'gpt-3.5-turbo'),
+            'model': request_data.get('model', default_model),
             'choices': [
                 {
                     'index': 0,
                     'message': {
                         'role': 'assistant',
-                        'content': 'This is a simulated response from the mock OpenAI API.'
+                        'content': default_content
                     },
                     'finish_reason': 'stop'
                 }
